@@ -1,111 +1,112 @@
 # TAXICF
 
-TAXICF 是一个轻量的宏基因组序列分类工具（metagenomic classifier）。
+TAXICF is a lightweight metagenomic sequence classification tool.
 
-当前版本：**0.1.0**
+Current version: **0.1.0**
 
-核心思路：对参考序列按 taxid 生成 syncmer 哈希集合，并构建 **ICF（Interleaved Cuckoo Filter）** 数据库；分类时对每条 read 计算 syncmer 哈希并在 ICF 中统计命中，输出候选 taxid。
-
----
-
-## 功能
-
-- `build`：从输入清单构建 ICF 数据库（输出 `*.icf`）
-- `classify`：对 FASTA/FASTQ（支持压缩）进行分类（输出 `*.tsv`）
+Core idea: build an **ICF (Interleaved Cuckoo Filter)** database from per-taxid syncmer hash sets derived from reference sequences; during classification, compute syncmer hashes for each read and count hits in the ICF to produce candidate taxids.
 
 ---
 
-## 构建
+## Features
 
-### 依赖
+- `build`: build an ICF database from an input manifest (outputs `*.icf`)
+- `classify`: classify FASTA/FASTQ reads (compressed input supported) (outputs `*.tsv`)
+
+---
+
+## Build
+
+### Dependencies
 
 - CMake ≥ 3.10
-- 支持 C++20 的编译器（GCC / Clang）
-- zlib、bzip2（用于压缩输入，通常由 SeqAn3 依赖）
-- OpenMP（可选，用于加速部分流程）
+- A C++20-capable compiler (GCC / Clang)
+- zlib, bzip2 (for compressed inputs; typically required by SeqAn3)
+- OpenMP (optional, to accelerate parts of the pipeline)
 
-Ubuntu 示例：
+Ubuntu example:
 
 ```bash
 sudo apt-get update
 sudo apt-get install -y build-essential cmake git libbz2-dev zlib1g-dev
 ```
 
-### 编译
+### Compile
 
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
 ```
 
-生成可执行文件：`build/TAXICF`
+Built executable: `build/TAXICF`
 
 ---
 
-## 使用
+## Usage
 
-### 1) 构建数据库（build）
+### 1) Build database (`build`)
 
-准备一个两列的 TSV 清单（每行一个参考文件与其 taxid）：
+Prepare a two-column TSV manifest (one reference file path and its taxid per line):
 
 ```
 /path/to/ref1.fna.gz    562
 /path/to/ref2.fasta     1280
 ```
 
-运行：
+Run:
 
 ```bash
 ./build/TAXICF build -i target.tsv -o TAXICFDB
 ```
 
-输出数据库文件：`TAXICFDB.icf`
+Output database file: `TAXICFDB.icf`
 
-#### DB 体积优化（推荐）
+#### DB size optimization (recommended)
 
-默认情况下，`build` 会使用 **v2 多块 ICF** 格式：把不同 taxid 按各自需要的 `binSize` 分组到多个 ICF block 里（仍然只使用 ICF），从根上避免“全局 maxHashes 绑死 binSize”导致的超大数据库。
+By default, `build` uses the **v2 multi-block ICF** format: taxids are grouped into multiple ICF blocks by the `binSize` they need (still ICF-only). This avoids the large database blow-up caused by a global `maxHashes` forcing an oversized `binSize` for everyone.
 
-你可以用 `--block-factor` 控制分组粒度（越小越细、越省空间，但 block 数会变多；建议从 `1.5` 开始）：
+You can control the grouping granularity with `--block-factor` (smaller = finer groups and smaller DB, but more blocks; start with `1.5`):
 
 ```bash
 ./build/TAXICF build -i target.tsv -o TAXICFDB --block-factor 1.5
 ```
 
-如果你想强制输出旧的单块 v1 格式（通常会更大，但便于对比），把它设为 `<=0`：
+To force the legacy single-block v1 format (usually larger, but useful for comparison), set it to `<= 0`:
 
 ```bash
 ./build/TAXICF build -i target.tsv -o TAXICFDB --block-factor 0
 ```
 
-### 2) 序列分类（classify）
+### 2) Classify reads (`classify`)
 
-单端：
+Single-end:
 
 ```bash
 ./build/TAXICF classify -i reads.fq -d TAXICFDB -o TAXICFClassify.tsv
 ```
 
-双端（成对文件，必须偶数个参数）：
+Paired-end (paired files; must pass an even number of `-p` arguments):
 
 ```bash
 ./build/TAXICF classify -p R1.fq.gz -p R2.fq.gz -d TAXICFDB -o TAXICFClassify.tsv
 ```
 
-说明：
-- `-d/--database` 可以写 `TAXICFDB` 或 `TAXICFDB.icf`（程序会自动补全 `.icf`）
-- 输出为 TSV；默认会带 `.tsv` 后缀
-  - `classify` 同时支持读取 v1 / v2 数据库
+Notes:
+- `-d/--database` accepts `TAXICFDB` or `TAXICFDB.icf` (the program will append `.icf` automatically)
+- Output is TSV; by default it will have a `.tsv` suffix
+  - `classify` supports both v1 and v2 databases
 
 ---
 
-## 临时文件说明
+## Temporary files
 
-`build` 阶段会在**当前工作目录**创建一个临时目录（形如 `__taxicf_tmp_<output>`）用于存放中间产物，并在成功结束后自动删除。
-建议在 benchmark 脚本的 run 目录下执行 build（本仓库的 `bench/bench.py` 已按这个方式组织）。
+During `build`, TAXICF creates a temporary directory in the **current working directory** (e.g., `__taxicf_tmp_<output>`) to store intermediate artifacts, and removes it automatically on successful completion.
+
+It is recommended to run builds under the benchmark run directory (this repo’s `bench/bench.py` is organized that way).
 
 ---
 
-## 测试（可选）
+## Tests (optional)
 
 ```bash
 ./build/icf_filter_tests
