@@ -1,0 +1,50 @@
+# Build artifacts (CMake)
+/build/
+/cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+compile_commands.json
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+*.out
+*.app
+*.d
+*.gch
+*.pch
+
+# IDE / Editor
+.vscode/
+.idea/
+.vs/
+.clangd
+*.swp
+*.swo
+.DS_Store
+
+# Runtime outputs
+tmp/
+*.icf
+*.tsv
+
+# Bench outputs
+bench/DB/
+bench/runs/
+bench/results/
+bench/tmp/
+
+# Misc
+.cache/
+
+# Profiling artifacts
+perf.data
+perf.data.*
+
+# Private docs (do not publish)
+docs/
